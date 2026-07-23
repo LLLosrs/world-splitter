@@ -1,0 +1,4 @@
+# Copy these two lines into a new file named plugins/world-splitter
+# inside your fork of https://github.com/runelite/plugin-hub
+repository=https://github.com/LLLosrs/world-splitter.git
+commit=REPLACE_WITH_FULL_40_CHARACTER_COMMIT_HASH
