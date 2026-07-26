@@ -9,8 +9,8 @@ import java.util.Deque;
 import java.util.Set;
 import javax.inject.Inject;
 import net.runelite.api.Client;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetID;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -24,9 +24,9 @@ class WorldSplitterOverlay extends Overlay
 
 	@Inject
 	private WorldSplitterOverlay(
-		Client client,
-		WorldSplitterPlugin plugin,
-		WorldSplitterConfig config)
+			Client client,
+			WorldSplitterPlugin plugin,
+			WorldSplitterConfig config)
 	{
 		this.client = client;
 		this.plugin = plugin;
@@ -49,7 +49,7 @@ class WorldSplitterOverlay extends Overlay
 			return null;
 		}
 
-		Widget root = client.getWidget(WidgetID.WORLD_SWITCHER_GROUP_ID, 0);
+		Widget root = client.getWidget(InterfaceID.WORLDSWITCHER, 0);
 		if (root == null || root.isHidden())
 		{
 			return null;
@@ -94,9 +94,15 @@ class WorldSplitterOverlay extends Overlay
 		Widget parent = widget.getParent();
 		Rectangle parentBounds = parent == null ? null : parent.getBounds();
 		Rectangle rowBounds = parentBounds != null && parentBounds.width > bounds.width
-			? parentBounds
-			: bounds;
-		graphics.fillRect(rowBounds.x, rowBounds.y, rowBounds.width, rowBounds.height);
+				? parentBounds
+				: bounds;
+
+		graphics.fillRect(
+				rowBounds.x,
+				rowBounds.y,
+				rowBounds.width,
+				rowBounds.height
+		);
 	}
 
 	private static void pushChildren(Deque<Widget> stack, Widget[] children)
