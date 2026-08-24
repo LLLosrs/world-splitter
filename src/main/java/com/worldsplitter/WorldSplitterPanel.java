@@ -27,6 +27,7 @@ class WorldSplitterPanel extends PluginPanel
 	private final JLabel worldsLabel = new JLabel();
 	private final JLabel groupInfoLabel = new JLabel();
 	private final JLabel actionStatusLabel = new JLabel();
+	private final JPanel assignmentsPanel = new JPanel();
 	private final JPanel notInGroupPanel = new JPanel(new GridLayout(2, 1, 0, 6));
 	private final JPanel inGroupPanel = new JPanel(new GridLayout(2, 1, 0, 6));
 	private final JTextField joinCodeField = new JTextField();
@@ -65,6 +66,11 @@ class WorldSplitterPanel extends PluginPanel
 		groupInfoLabel.setAlignmentX(CENTER_ALIGNMENT);
 		groupInfoLabel.setHorizontalAlignment(SwingConstants.CENTER);
 		content.add(groupInfoLabel);
+		content.add(Box.createRigidArea(new Dimension(0, 8)));
+
+		assignmentsPanel.setLayout(new BoxLayout(assignmentsPanel, BoxLayout.Y_AXIS));
+		assignmentsPanel.setAlignmentX(CENTER_ALIGNMENT);
+		content.add(assignmentsPanel);
 		content.add(Box.createRigidArea(new Dimension(0, 8)));
 
 		actionStatusLabel.setForeground(new Color(255, 190, 80));
@@ -115,6 +121,7 @@ class WorldSplitterPanel extends PluginPanel
 		boolean syncReady = plugin.isGroupSyncReady();
 		notInGroupPanel.setVisible(!inGroup);
 		inGroupPanel.setVisible(inGroup);
+		assignmentsPanel.setVisible(inGroup);
 
 		createGroupButton.setEnabled(syncReady && !busy);
 		joinGroupButton.setEnabled(syncReady && !busy);
@@ -129,6 +136,7 @@ class WorldSplitterPanel extends PluginPanel
 				"<html><center>" + plugin.getGroupMemberCount()
 					+ " people in group<br>you are #"
 					+ (plugin.getGroupMemberIndex() + 1) + "</center></html>");
+			updateGroupAssignments(plugin.getGroupAssignments(), plugin.getGroupMemberIndex());
 		}
 		else
 		{
@@ -136,6 +144,7 @@ class WorldSplitterPanel extends PluginPanel
 			groupInfoLabel.setText(syncReady
 				? "Create or join a group to sync worlds live"
 				: "Enable group sync and set a server URL in settings");
+			assignmentsPanel.removeAll();
 		}
 
 		String actionStatus = plugin.getActionStatus();
@@ -155,6 +164,46 @@ class WorldSplitterPanel extends PluginPanel
 		}
 	}
 
+	private void updateGroupAssignments(List<List<Integer>> assignments, int myIndex)
+	{
+		assignmentsPanel.removeAll();
+
+		if (assignments.isEmpty())
+		{
+			JLabel calculating = new JLabel("Calculating group ranges...");
+			calculating.setForeground(Color.LIGHT_GRAY);
+			calculating.setAlignmentX(CENTER_ALIGNMENT);
+			assignmentsPanel.add(calculating);
+			return;
+		}
+
+		for (int index = 0; index < assignments.size(); index++)
+		{
+			List<Integer> worlds = assignments.get(index);
+			boolean mine = index == myIndex;
+
+			JPanel card = new JPanel(new BorderLayout(6, 0));
+			card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+			card.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(mine ? new Color(255, 190, 80) : new Color(70, 70, 70)),
+				BorderFactory.createEmptyBorder(6, 8, 6, 8)));
+
+			JLabel memberLabel = new JLabel("#" + (index + 1) + (mine ? " (you)" : ""));
+			memberLabel.setFont(FontManager.getRunescapeBoldFont());
+			card.add(memberLabel, BorderLayout.WEST);
+
+			JLabel rangeLabel = new JLabel(formatWorldRange(worlds));
+			rangeLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+			card.add(rangeLabel, BorderLayout.CENTER);
+
+			assignmentsPanel.add(card);
+			if (index < assignments.size() - 1)
+			{
+				assignmentsPanel.add(Box.createRigidArea(new Dimension(0, 4)));
+			}
+		}
+	}
+
 	private void updateWorldsLabel(List<Integer> worlds)
 	{
 		if (worlds.isEmpty())
@@ -171,5 +220,19 @@ class WorldSplitterPanel extends PluginPanel
 				"Worlds " + worlds.get(0) + " - " + worlds.get(worlds.size() - 1)
 					+ " (" + worlds.size() + ")");
 		}
+	}
+
+	private static String formatWorldRange(List<Integer> worlds)
+	{
+		if (worlds.isEmpty())
+		{
+			return "No worlds";
+		}
+		if (worlds.size() == 1)
+		{
+			return Integer.toString(worlds.get(0));
+		}
+		return worlds.get(0) + " - " + worlds.get(worlds.size() - 1)
+			+ " (" + worlds.size() + ")";
 	}
 }
