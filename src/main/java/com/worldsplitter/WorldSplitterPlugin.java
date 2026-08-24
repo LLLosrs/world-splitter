@@ -64,6 +64,7 @@ public class WorldSplitterPlugin extends Plugin
 	private NavigationButton navButton;
 	private ScheduledFuture<?> heartbeatTask;
 	private volatile Set<Integer> assignedWorlds = Collections.emptySet();
+	private volatile List<List<Integer>> groupAssignments = Collections.emptyList();
 
 	private volatile boolean inGroup;
 	private volatile String groupCode;
@@ -123,6 +124,7 @@ public class WorldSplitterPlugin extends Plugin
 		panel = null;
 		navButton = null;
 		assignedWorlds = Collections.emptySet();
+		groupAssignments = Collections.emptyList();
 	}
 
 	@Subscribe
@@ -259,6 +261,11 @@ public class WorldSplitterPlugin extends Plugin
 		return list;
 	}
 
+	List<List<Integer>> getGroupAssignments()
+	{
+		return groupAssignments;
+	}
+
 	private void runGroupAction(String pendingMessage, CheckedRunnable action)
 	{
 		if (!isGroupSyncReady())
@@ -310,7 +317,10 @@ public class WorldSplitterPlugin extends Plugin
 		groupMemberCount = Math.max(1, state.getTotalMembers());
 		persistGroupState();
 		startHeartbeat();
-		recomputeAssignedWorlds();
+
+		// create/join runs on the background executor, so compute the complete
+		// group allocation before the action is reported as finished.
+		recomputeAssignedWorldsNow();
 	}
 
 	private void clearLocalGroupState()
@@ -320,6 +330,7 @@ public class WorldSplitterPlugin extends Plugin
 		memberId = null;
 		groupMemberIndex = 0;
 		groupMemberCount = 1;
+		groupAssignments = Collections.emptyList();
 		persistGroupState();
 		recomputeAssignedWorlds();
 	}
@@ -371,9 +382,14 @@ public class WorldSplitterPlugin extends Plugin
 
 			if (changed)
 			{
-				recomputeAssignedWorlds();
+				// Heartbeat already runs off the client thread. Recompute immediately
+				// so the member count, ranges and highlighted worlds change together.
+				recomputeAssignedWorldsNow();
 			}
-			refreshPanel();
+			else
+			{
+				refreshPanel();
+			}
 		}
 		catch (Exception e)
 		{
@@ -385,29 +401,41 @@ public class WorldSplitterPlugin extends Plugin
 
 	private void recomputeAssignedWorlds()
 	{
-		executor.execute(() ->
+		executor.execute(this::recomputeAssignedWorldsNow);
+	}
+
+	private void recomputeAssignedWorldsNow()
+	{
+		List<Integer> pool = buildWorldPool();
+		List<Integer> mine;
+
+		if (inGroup)
 		{
-			List<Integer> pool = buildWorldPool();
-			List<Integer> mine;
-			if (inGroup)
+			int totalMembers = Math.max(1, groupMemberCount);
+			int myIndex = Math.max(0, Math.min(groupMemberIndex, totalMembers - 1));
+			List<List<Integer>> assignments = new ArrayList<>(totalMembers);
+
+			for (int index = 0; index < totalMembers; index++)
 			{
-				mine = WorldAllocator.allocateEven(
-					pool,
-					Math.max(1, groupMemberCount),
-					Math.max(0, groupMemberIndex));
-			}
-			else
-			{
-				mine = WorldAllocator.allocateFixedSize(
-					pool,
-					Math.max(1, config.totalPeople()),
-					Math.max(1, config.worldsPerPerson()),
-					Math.max(1, config.myPosition()));
+				List<Integer> allocation = WorldAllocator.allocateEven(pool, totalMembers, index);
+				assignments.add(Collections.unmodifiableList(new ArrayList<>(allocation)));
 			}
 
-			assignedWorlds = Collections.unmodifiableSet(new LinkedHashSet<>(mine));
-			refreshPanel();
-		});
+			groupAssignments = Collections.unmodifiableList(assignments);
+			mine = assignments.get(myIndex);
+		}
+		else
+		{
+			groupAssignments = Collections.emptyList();
+			mine = WorldAllocator.allocateFixedSize(
+				pool,
+				Math.max(1, config.totalPeople()),
+				Math.max(1, config.worldsPerPerson()),
+				Math.max(1, config.myPosition()));
+		}
+
+		assignedWorlds = Collections.unmodifiableSet(new LinkedHashSet<>(mine));
+		refreshPanel();
 	}
 
 	private List<Integer> buildWorldPool()
