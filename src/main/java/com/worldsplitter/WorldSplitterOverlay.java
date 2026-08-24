@@ -15,9 +15,14 @@ import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 
-/** Highlights assigned world rows in the in-game world switcher. */
+/** Highlights assigned worlds in the in-game world switcher without covering the world list. */
 class WorldSplitterOverlay extends Overlay
 {
+	private static final int HORIZONTAL_PADDING = 4;
+	private static final int VERTICAL_PADDING = 2;
+	private static final int FILL_ALPHA = 24;
+	private static final int BORDER_ALPHA = 220;
+
 	private final Client client;
 	private final WorldSplitterPlugin plugin;
 	private final WorldSplitterConfig config;
@@ -55,8 +60,15 @@ class WorldSplitterOverlay extends Overlay
 			return null;
 		}
 
-		Color highlight = config.highlightColor();
-		graphics.setColor(highlight);
+		Rectangle rootBounds = root.getBounds();
+		if (rootBounds == null || rootBounds.width <= 0 || rootBounds.height <= 0)
+		{
+			return null;
+		}
+
+		Color configured = config.highlightColor();
+		Color fill = withAlpha(configured, FILL_ALPHA);
+		Color border = withAlpha(configured, BORDER_ALPHA);
 
 		Deque<Widget> stack = new ArrayDeque<>();
 		stack.push(root);
@@ -72,7 +84,7 @@ class WorldSplitterOverlay extends Overlay
 			Integer worldNumber = parseWorldNumber(widget.getText());
 			if (worldNumber != null && assigned.contains(worldNumber))
 			{
-				fillWidgetRow(graphics, widget);
+				highlightWorldNumber(graphics, widget, rootBounds, fill, border);
 			}
 
 			pushChildren(stack, widget.getDynamicChildren());
@@ -83,7 +95,19 @@ class WorldSplitterOverlay extends Overlay
 		return null;
 	}
 
-	private static void fillWidgetRow(Graphics2D graphics, Widget widget)
+	/**
+	 * Highlight only the actual world-number widget.
+	 *
+	 * Do not expand to the parent widget: in the world switcher the parent can be
+	 * a whole column/container, which creates the large solid bar that obscures
+	 * the interface.
+	 */
+	private static void highlightWorldNumber(
+			Graphics2D graphics,
+			Widget widget,
+			Rectangle rootBounds,
+			Color fill,
+			Color border)
 	{
 		Rectangle bounds = widget.getBounds();
 		if (bounds == null || bounds.width <= 0 || bounds.height <= 0)
@@ -91,18 +115,39 @@ class WorldSplitterOverlay extends Overlay
 			return;
 		}
 
-		Widget parent = widget.getParent();
-		Rectangle parentBounds = parent == null ? null : parent.getBounds();
-		Rectangle rowBounds = parentBounds != null && parentBounds.width > bounds.width
-				? parentBounds
-				: bounds;
-
-		graphics.fillRect(
-				rowBounds.x,
-				rowBounds.y,
-				rowBounds.width,
-				rowBounds.height
+		Rectangle highlightBounds = new Rectangle(
+				bounds.x - HORIZONTAL_PADDING,
+				bounds.y - VERTICAL_PADDING,
+				bounds.width + (HORIZONTAL_PADDING * 2),
+				bounds.height + (VERTICAL_PADDING * 2)
 		);
+
+		Rectangle clipped = highlightBounds.intersection(rootBounds);
+		if (clipped.isEmpty())
+		{
+			return;
+		}
+
+		graphics.setColor(fill);
+		graphics.fillRect(clipped.x, clipped.y, clipped.width, clipped.height);
+
+		graphics.setColor(border);
+		graphics.drawRect(
+				clipped.x,
+				clipped.y,
+				Math.max(0, clipped.width - 1),
+				Math.max(0, clipped.height - 1)
+		);
+	}
+
+	private static Color withAlpha(Color color, int alpha)
+	{
+		if (color == null)
+		{
+			return new Color(0, 255, 0, alpha);
+		}
+
+		return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
 	}
 
 	private static void pushChildren(Deque<Widget> stack, Widget[] children)
